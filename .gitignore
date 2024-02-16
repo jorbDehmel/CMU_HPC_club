@@ -1,0 +1,6 @@
+*.o
+*.out
+*.tmp
+*.log
+.vscode/
+__pycache__/
