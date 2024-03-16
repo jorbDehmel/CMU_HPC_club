@@ -14,6 +14,7 @@ Maintainer(s):
 import subprocess as sp
 from typing import Union
 import os
+import shutil
 
 
 def download_package(package_name: str, save_to: str) -> None:
@@ -35,28 +36,20 @@ def download_package(package_name: str, save_to: str) -> None:
     os.mkdir(save_to)
     os.chdir(save_to)
 
+    print(f'Now in {os.getcwd()}')
+
     # Download all packages
-    sp.run(["apt-rdepends",
-        package_name,
-        "|",
-        "grep",
-        "-v",
-        "^ ",
-        "|",
-        "grep",
-        "-v",
-        "^libc-dev$",
-        "|",
-        "apt-get",
-        "download"],
-        check=True,
-        stdout=open(os.devnull, 'wb'))
+    os.system(f"apt-get download $(apt-cache depends -i {package_name} | grep -v \"^ \" | grep -v ^libc-dev$)")
+
+    os.system("ls")
 
     # Change back to old cwd
     os.chdir(old_cwd)
 
+    print(f'Now in {os.getcwd()}')
 
-def send_folder(folder_to_send: str, destination_path: str, to_nodes: str) -> None:
+
+def send_folder(folder_to_send: str, destination_path: str, to_nodes: str, password: Union[str, None] = None) -> None:
     """
     Send a folder over SSH using PDSH to all nodes specified.
     Requires this computer to be able to access all specified
@@ -69,13 +62,9 @@ def send_folder(folder_to_send: str, destination_path: str, to_nodes: str) -> No
     :returns: Nothing.
     """
 
-    sp.run(["pdcp",
-        "-w",
-        to_nodes,
-        f"\"{folder_to_send}\"",
-        f"\"{destination_path}\""],
-        check=True,
-        stdout=open(os.devnull, 'wb'))
+    run_command(f"mkdir -p {destination_path}", to_nodes)
+
+    os.system(f"pdcp -r -w {to_nodes} \"{os.getcwd()}/{folder_to_send}\" \"{destination_path}\"")
 
 
 def run_command(command: str, on_nodes: str, password: Union[str, None] = None) -> None:
@@ -90,13 +79,15 @@ def run_command(command: str, on_nodes: str, password: Union[str, None] = None) 
     :returns: Nothing.
     """
 
+    print(command)
+
     if password:
-        sp.run(["pdsh", "-w", on_nodes, f"echo \"{password}\" | sudo -S \"{command}\""],
-            check=True, stdout=open(os.devnull, 'wb'))
+        sp.run(["pdsh", "-w", on_nodes, f"echo {password} | sudo -S {command}"],
+            check=True)
 
     else:
-        sp.run(["pdsh", "-w", on_nodes, f"\"{command}\""],
-            check=True, stdout=open(os.devnull, 'wb'))
+        sp.run(["pdsh", "-w", on_nodes, f"{command}"],
+            check=True)
 
 
 def remote_install_package(package: str, on_nodes: str, password: str) -> None:
@@ -119,12 +110,12 @@ def remote_install_package(package: str, on_nodes: str, password: str) -> None:
     download_package(package, download_location)
 
     # Send all the package *.deb files
-    send_folder("./", download_location, on_nodes)
+    send_folder(download_location, '/home/slurm/' + download_location, on_nodes, password)
 
     # Send install command to all nodes
     run_command(
-        f"echo \"{password}\" | sudo -S dpkg -R --force-depends -i {download_location}/*.deb",
+        f"echo \"{password}\" | sudo -S dpkg -R --force-depends -i /home/slurm/{download_location}",
         on_nodes)
 
     # Clean up
-    os.remove(download_location)
+    shutil.rmtree(download_location)

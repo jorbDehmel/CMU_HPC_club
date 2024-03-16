@@ -6,6 +6,7 @@ Maintainer(s):
 '''
 
 import sys
+import os
 from typing import List
 import subprocess as sp
 import platform
@@ -19,6 +20,9 @@ def main(args: List[str]) -> int:
     :param args: The command-line arguments.
     :returns: Zero upon success, non-zero on failure.
     '''
+
+    os.system('rm -rf ./*_TMP')
+    print(f'args: {args}')
 
     # Check args
     if len(args) < 4:
@@ -44,20 +48,6 @@ def main(args: List[str]) -> int:
         )
 
         return 2
-
-    # Check package manager (need `apt`)
-    try:
-        sp.run(["apt", "--help"], check=True)
-
-    except FileNotFoundError:
-
-        # Throw error if `apt` is not present
-        print(
-            "This script can only be run on a Linux\n"
-            + "distro which uses `apt`."
-        )
-
-        return 3
 
     node_pattern: str = args[1]
     password: str = args[2]
